@@ -1,97 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>aaaa</title>
-  
-  <!-- Include Ruffle (Flash Emulator) from CDN -->
-  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: #ffffff;
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .game-container {
-      width: 100%;
-      max-width: 800px;
-      background-color: #1e1e1e;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    }
-
-    /* Maintains a 4:3 or 16:9 aspect ratio container for the game */
-    .game-wrapper {
-      position: relative;
-      width: 100%;
-      padding-top: 75%; /* 4:3 Aspect Ratio (use 56.25% for 16:9) */
-      background-color: #000;
-    }
-
-    .game-wrapper embed,
-    .game-wrapper object,
-    .game-wrapper ruffle-embed,
-    .game-wrapper ruffle-player {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
-    .game-controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 20px;
-      background-color: #2a2a2a;
-    }
-
-    .game-title {
-      font-size: 1.2rem;
-      font-weight: bold;
-    }
-
-    .fullscreen-btn {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      font-size: 0.9rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    .fullscreen-btn:hover {
-      background-color: #0056b3;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>exit-path2</title>
 </head>
 <body>
 
-  <div class="game-container">
-    <!-- Game Frame Area -->
-    <div class="game-wrapper" id="gameWrapper">
-      <!-- Embedded SWF file (Replace 'your-game.swf' with the path to your file) -->
-      <embed src="exit_path_2.swf" width="100%" height="100%" type="application/x-shockwave-flash">
-    </div>
+    <!-- Replace "game.swf" with the actual path or URL to your Flash file -->
+    <!-- Adjust width and height to match your game's original dimensions -->
+    <object data="exit_path_2.swf" width="800" height="600">
+        <param name="movie" value="exit_path_2.swf">
+        <param name="quality" value="high">
+        <param name="allowScriptAccess" value="always">
+        <param name="allowFullScreen" value="true">
+        <param name="wmode" value="direct">
+        
+        <!-- Fallback text if the browser or emulator cannot load the file -->
+        <p>This browser does not support Flash or the game file is missing.</p>
+    </object>
 
-    <!-- Control Bar -->
-    <div class="game-controls">
-      <span class="game-title">Game Title</span>
-      <button class="fullscreen-btn" onclick="toggleFullscreen()">Fullscreen</button>
-    </div>
-  </div>
-
-  <script>
+</body>
+</html>
