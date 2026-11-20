@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plants vs. Zombies</title>
+    <!-- base must live in <head> so every relative URL resolves against the CDN -->
+    <base href="https://cdn.jsdelivr.net/gh/web-ports/pvz@latest/" />
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      #loading-text {
+        font-weight: bold;
+        font-size: 32px;
+        font-family: cursive;
+        text-align: center;
+        margin: 10px;
+        color: #fff;
+        background: linear-gradient(270deg, #f00, #ff7f00, #ff0, #0f0, #00f, #4b0082, #8f00ff);
+        background-size: 400% 400%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: rainbow 3s ease infinite;
+      }
+      #error-text {
+        color: #ff6b6b;
+        font-family: monospace;
+        font-size: 14px;
+        text-align: center;
+        max-width: 90%;
+        white-space: pre-wrap;
+      }
+      @keyframes rainbow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      #canvas { display: block; outline: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="loading-text">LOADING...</div>
+    <div id="error-text"></div>
+    <canvas id="canvas" width="800" height="600"></canvas>
+
+    <textarea
+      id="pvz-soft-keyboard"
+      style="position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;font-size:16px;"
+      autocapitalize="off" autocomplete="off" autocorrect="off"
+      enterkeyhint="done" spellcheck="false"
+    ></textarea>
+
+    <script>
+      let _res, _rej;
+      window.moduleReadyPromise = new Promise((r, e) => { _res = r; _rej = e; });
+      var Module = {
+        canvas: document.getElementById("canvas"),
+        noInitialRun: true,
+        onRuntimeInitialized: _res,
+        onAbort: (e) => _rej(e),
+        print: console.log,
+        printErr: console.warn,
+      };
+    </script>
+
+    <script>
+      const loadingText = document.getElementById("loading-text");
+      const errorText = document.getElementById("error-text");
+      let loadedBytes = 0;
+
+      function showError(err) {
+        console.error(err);
+        loadingText.textContent = "FAILED TO LOAD";
+        errorText.textContent =
+          err && err.message ? err.name + ": " + err.message : String(err);
+      }
+      window.addEventListener("unhandledrejection", (e) => showError(e.reason));
+
+      async function fetchWithProgress(url) {
+        let response;
+        try {
+          response = await fetch(url);
+        } catch (e) {
+          throw new Error("Network/CSP/CORS block fetching " + new URL(url, document.baseURI).href);
+        }
+        if (!response.ok) throw new Error("HTTP " + response.status + " for " + response.url);
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          received += value.length;
+          loadedBytes += value.length;
+          chunks.push(value);
+          loadingText.textContent =
+            "LOADING... " + (loadedBytes / 1048576).toFixed(2) + " MB / 43.34 MB";
+        }
+        const full = new Uint8Array(received);
+        let offset = 0;
+        for (const c of chunks) { full.set(c, offset); offset += c.length; }
+        return full;
+      }
+
+      // Returns a Uint8Array of the merged pak. Cache API is optional:
+      // it throws inside sandboxed iframes (e.g. Google Sites), so we fall back.
+      async function loadPak(parts, cacheKey) {
+        let cache = null;
+        try {
+          if ("caches" in window) cache = await caches.open("pvz-cache");
+        } catch (e) { console.warn("Cache API unavailable:", e); }
+
+        if (cache) {
+          try {
+            const hit = await cache.match(cacheKey);
+            if (hit) return new Uint8Array(await hit.arrayBuffer());
+          } catch (e) { console.warn("Cache read failed:", e); }
+        }
+
+        const buffers = await Promise.all(parts.map(fetchWithProgress));
+        const total = buffers.reduce((n, b) => n + b.length, 0);
+        const merged = new Uint8Array(total);
+        let off = 0;
+        for (const b of buffers) { merged.set(b, off); off += b.length; }
+
+        if (cache) {
+          try { await cache.put(cacheKey, new Response(merged)); }
+          catch (e) { console.warn("Cache write failed:", e); }
+        }
+        return merged;
+      }
+
+      function getParts(file, start, end) {
+        const parts = [];
+        for (let i = start; i <= end; i++) parts.push(file + ".part" + i);
+        return parts;
+      }
+
+      function mkdirp(path) {
+        const segs = path.split("/").slice(0, -1);
+        let dir = "";
+        for (const s of segs) {
+          dir += "/" + s;
+          try { Module.FS.mkdir(dir); } catch {}
+        }
+      }
+
+      (async () => {
+        const pak = await loadPak(getParts("main.pak", 1, 3), "main.pak");
+
+        loadingText.textContent = "STARTING...";
+        const ns = document.createElement("script");
+        ns.src = "pvz.js";
+        ns.onerror = () => showError(new Error("Could not load pvz.js from the CDN"));
+        document.body.appendChild(ns);
+        await moduleReadyPromise;
+
+        // Write the pak straight from memory (no blob URL round-trip)
+        Module.FS.writeFile("/main.pak", pak);
+
+        const files = [
+          "properties/Layout.xml",
+          "properties/partner.xml.sig",
+          "properties/default.xml",
+          "properties/partner.xml",
+          "properties/partner_logo.jpg",
+        ];
+        for (const f of files) {
+          const res = await fetch(f);
+          if (!res.ok) throw new Error("HTTP " + res.status + " for " + f);
+          mkdirp("/" + f);
+          Module.FS.writeFile("/" + f, new Uint8Array(await res.arrayBuffer()));
+        }
+
+        // Saves: persist with IndexedDB if allowed, otherwise play without saving
+        let canSave = false;
+        try {
+          try { Module.FS.mkdir("/saves"); } catch {}
+          Module.FS.mount(Module.FS.filesystems.IDBFS, {}, "/saves");
+          await Promise.race([
+            new Promise((r) => Module.FS.syncfs(true, () => r())),
+            new Promise((r) => setTimeout(r, 4000)),
+          ]);
+          canSave = true;
+        } catch (e) { console.warn("Saves disabled:", e); }
+
+        const canvas = document.getElementById("canvas");
+        const resize = () => {
+          const s = Math.min(innerWidth / 800, innerHeight / 600);
+          canvas.style.width = s * 800 + "px";
+          canvas.style.height = s * 600 + "px";
+        };
+        resize();
+        addEventListener("resize", resize);
+        addEventListener("fullscreenchange", resize);
+
+        if (canSave) {
+          const sync = () => { try { Module.FS.syncfs(false, () => {}); } catch {} };
+          setInterval(sync, 5000);
+          addEventListener("visibilitychange", () => document.hidden && sync());
+          addEventListener("pagehide", sync);
+        }
+
+        Module.callMain([]);
+        loadingText.remove();
+      })().catch(showError);
+    </script>
+  </body>
+</html>
