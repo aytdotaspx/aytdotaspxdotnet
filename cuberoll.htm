@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cube Roll</title>
+
+  <script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+      autoplay: "on",
+      backgroundColor: "#000000",
+      scale: "showAll",
+      forceScale: true,
+      allowFullscreen: true
+    };
+  </script>
+
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #game {
+      width: min(100vw, 133.333vh);
+      aspect-ratio: 4 / 3;
+      max-height: 100vh;
+    }
+
+    ruffle-player {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game"></div>
+
+  <script>
+    window.addEventListener("load", async () => {
+      const ruffle = window.RufflePlayer.newest();
+      const player = ruffle.createPlayer();
+
+      document.getElementById("game").appendChild(player);
+
+      try {
+        await player.load("./CubeRoll.swf");
+      } catch (error) {
+        console.error("Cube Roll error:", error);
+        document.getElementById("game").innerText =
+          "Could not load Cube Roll: " + error;
+      }
+    });
+  </script>
+</body>
+</html>
