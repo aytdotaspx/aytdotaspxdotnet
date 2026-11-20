@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PONG</title>
+<style>
+:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
+canvas{width:min(100%,133.33vh);aspect-ratio:4/3;image-rendering:pixelated;background:#000;display:block}
+#hint{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));text-align:center;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#888;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c" width="640" height="480"></canvas>
+<div id="hint">W / S &nbsp;·&nbsp; ↑ / ↓ &nbsp;·&nbsp; P = CPU opponent &nbsp;·&nbsp; SPACE = new game &nbsp;·&nbsp; touch: drag each side</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const W=640,H=480,U=10,PW=10,PH=56,LX=30,RX=W-30-PW,MINY=20,MAXY=H-PH,PSPEED=6;
+const ANG=[-45,-30,-15,0,0,15,30,45]; // 8 paddle segments
+const SPEEDS=[5,7,9];                 // ball speeds: start, after 4 hits, after 12 hits
+const FONT={0:'111101101101111',1:'010110010010111',2:'111001111100111',3:'111001111001111',4:'101101111001001',5:'111100111001111',6:'111100111101111',7:'111001001001001',8:'111101111101111',9:'111101111001111'};
+let ac=null,cpu=matchMedia('(pointer:coarse)').matches,started=false;
+let ly,ry,bx,by,vx,vy,hits,spd,sc=[0,0],state='serve',timer=0,lastLoser=0,keys={};
+function beep(f,d){if(!ac)return;const o=ac.createOscillator(),g=ac.createGain();o.type='square';o.frequency.value=f;g.gain.value=.12;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d)}
+function newGame(){sc=[0,0];ly=ry=(H-PH)/2;state='serve';timer=60;lastLoser=Math.random()<.5?0:1}
+function serve(){
+  hits=0;spd=SPEEDS[0];bx=(W-U)/2;by=H*.25+Math.random()*H*.5;
+  const a=(Math.random()*30-15)*Math.PI/180,dir=lastLoser===0?-1:1;
+  vx=dir*spd*Math.cos(a);vy=spd*Math.sin(a);state='play';
+}
+function hit(p,dir){
+  const py=p===0?ly:ry,seg=Math.max(0,Math.min(7,Math.floor((by+U/2-py)/(PH/8))));
+  const a=ANG[seg]*Math.PI/180;
+  hits++;if(hits===4)spd=SPEEDS[1];if(hits===12)spd=SPEEDS[2];
+  vx=dir*spd*Math.cos(a);vy=spd*Math.sin(a);if(!vy)vy=0;beep(459,.096);
+}
+function update(){
+  if(keys.w)ly-=PSPEED;if(keys.s)ly+=PSPEED;
+  if(cpu){const t=by+U/2-PH/2,d=t-ry;ry+=Math.max(-4.5,Math.min(4.5,Math.abs(d)>6?d:0))}
+  else{if(keys.ArrowUp)ry-=PSPEED;if(keys.ArrowDown)ry+=PSPEED}
+  ly=Math.max(MINY,Math.min(MAXY,ly));ry=Math.max(MINY,Math.min(MAXY,ry));
+  if(state==='serve'){if(--timer<=0)serve();return}
+  if(state!=='play')return;
+  const pbx=bx;bx+=vx;by+=vy;
+  if(by<=0){by=0;vy=-vy;beep(226,.096)}
+  if(by+U>=H){by=H-U;vy=-vy;beep(226,.096)}
+  if(vx<0&&pbx>=LX+PW&&bx<LX+PW&&by+U>ly&&by<ly+PH){bx=LX+PW;hit(0,1)}
+  else if(vx>0&&pbx+U<=RX&&bx+U>RX&&by+U>ry&&by<ry+PH){bx=RX-U;hit(1,-1)}
+  if(bx+U<0||bx>W){
+    const w=bx>W?0:1;sc[w]++;lastLoser=1-w;beep(490,.25);
+    if(sc[w]>=11)state='over';else{state='serve';timer=60}
+  }
+}
+function digits(n,px,py,align){
+  const s=String(n),w=s.length*4*U-U;let ox=align==='r'?px-w:px;
+  for(const ch of s){const m=FONT[ch];for(let i=0;i<15;i++)if(m[i]==='1')x.fillRect(ox+(i%3)*U,py+Math.floor(i/3)*U,U,U);ox+=4*U}
+}
+function draw(){
+  x.fillStyle='#000';x.fillRect(0,0,W,H);x.fillStyle='#fff';
+  for(let y=0;y<H;y+=2*U)x.fillRect(W/2-U/2,y,U,U);          // net
+  digits(sc[0],W/2-50,20,'r');digits(sc[1],W/2+50,20,'l');   // scores
+  x.fillRect(LX,ly,PW,PH);x.fillRect(RX,ry,PW,PH);          // paddles
+  if(state==='play')x.fillRect(Math.round(bx),Math.round(by),U,U); // ball
+}
+let last=0,acc=0;
+function loop(t){acc+=Math.min(100,t-last);last=t;while(acc>=1000/60){update();acc-=1000/60}draw();requestAnimationFrame(loop)}
+function wake(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(!started){started=true;document.getElementById('hint').style.display='none'}}
+addEventListener('keydown',e=>{
+  wake();
+  if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();
+  if(e.key.length===1)keys[e.key.toLowerCase()]=true;else keys[e.key]=true;
+  if(e.key===' ')newGame();
+  if(e.key.toLowerCase()==='p')cpu=!cpu;
+});
+addEventListener('keyup',e=>{if(e.key.length===1)keys[e.key.toLowerCase()]=false;else keys[e.key]=false});
+function ptr(e){
+  wake();const r=c.getBoundingClientRect(),px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height*H-PH/2;
+  if(px<.5)ly=py;else if(!cpu)ry=py;
+  if(state==='over'&&e.type==='pointerdown')newGame();
+}
+c.addEventListener('pointerdown',ptr);c.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')ptr(e)});
+newGame();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
